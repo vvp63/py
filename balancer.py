@@ -4,6 +4,7 @@ import socket
 import configparser
 import datetime
 import random
+import threading
 
 # читаем конфиг
 config = configparser.ConfigParser()
@@ -14,7 +15,7 @@ b_log, n_count = config["balancer"]["log"], int(config["balancer"]["nodescount"]
 def Filelog(s):
     print(s)
     with open(b_log, 'a') as fd:
-         fd.write("{} {}\n".format(datetime.datetime.now(), s))
+        fd.write("{} {}\n".format(datetime.datetime.now(), s))
  
  
 Filelog("Starting fucking balancer ({} nodes)...".format(n_count))
@@ -83,7 +84,15 @@ def getStickyNode(client_id, curridx):
             return s['idx']
     newidx = getNextConn(curridx)
     sticky_list.append({'client' : client_id, 'idx' : newidx})
-    return newidx  
+    return newidx
+
+def SendRecvMsg(mess, idx):
+    cl_id = random.randint(1, 10)
+    newidx = getStickyNode(cl_id, idx)    
+    Filelog('Sending message {} (Client {}) to node {} '.format(mess, cl_id, newidx))
+    answer = Sendrecv(nodes[newidx]['conn'], mess)
+    Filelog('Get answer {}'.format(answer))
+    return newidx 
 
 # Основной цикл программы. Считываем сообщения из консоли, генерируем случайный id клиента,
 # находим (или назначаем новый) узел по sticky session
@@ -92,12 +101,13 @@ try:
     idx = 0
     mess = 'Fuck'
     while mess != 'quit':
-        mess = input('Message?')
-        cl_id = random.randint(1, 10)
-        idx = getStickyNode(cl_id, idx)
-        Filelog('Sending message {} (Client {}) to node {} '.format(mess, cl_id, idx))
-        answer = Sendrecv(nodes[idx]['conn'], mess)
-        Filelog('Get answer {}'.format(answer))          
+        mess = input('Message?')   
+        if mess == 'file':
+            f = open('data.txt')
+            for line in f:
+                idx = SendRecvMsg(line, idx)
+        else:
+            idx = SendRecvMsg(mess, idx)         
 finally:
 # Закрываем все активные соединения
     for n in nodes:
